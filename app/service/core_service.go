@@ -43,7 +43,7 @@ func (cs *CoreService) SignUp(ctx context.Context, signUpRequest model.SignUpReq
 	conn, err := grpc.NewClient("localhost:6021", grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		log.Printf("did not connect: %v", err)
-		return errors.New("internal error")
+		return errors.New(util.ErrInternalError)
 	}
 	defer conn.Close()
 	c := pb.NewUserServiceClient(conn)
@@ -54,7 +54,7 @@ func (cs *CoreService) SignUp(ctx context.Context, signUpRequest model.SignUpReq
 	r, err := c.IsUserExist(gCtx, &pb.IsUserExistRequest{Email: signUpRequest.Email})
 	if err != nil {
 		log.Printf("call IsUserExist failed: %v", err)
-		return errors.New("internal error")
+		return errors.New(util.ErrInternalError)
 	}
 	log.Printf("IsUserExist: %v", r.IsUserExist)
 
@@ -76,7 +76,7 @@ func (cs *CoreService) SignUp(ctx context.Context, signUpRequest model.SignUpReq
 	})
 	if err != nil {
 		log.Printf("call CreateUser failed: %v", err)
-		return errors.New("internal error")
+		return errors.New(util.ErrInternalError)
 	}
 	log.Printf("CreateUser: %v", rUser.Message)
 
@@ -110,7 +110,7 @@ func (cs *CoreService) ViewProfile(ctx context.Context, vpRequest model.ViewProf
 	}
 
 	if rToken.Email == "" {
-		return nextProfile, errors.New("invalid token")
+		return nextProfile, errors.New(util.ErrInvalidToken)
 	}
 
 	viewProfileData, err := cs.RedisRepo.GetViewProfile(ctx, fmt.Sprintf(KeyViewProfile, rToken.Email))
@@ -122,7 +122,7 @@ func (cs *CoreService) ViewProfile(ctx context.Context, vpRequest model.ViewProf
 	if viewProfileData.Email == "" {
 		rUser, err = HandleGetUserSubscription(ctx, vpRequest, viewProfileData.Email)
 		if err != nil {
-			return nextProfile, errors.New("internal error")
+			return nextProfile, errors.New(util.ErrInternalError)
 		}
 
 		for i := 0; i < len(rUser.Subscriptions); i++ {
@@ -141,7 +141,7 @@ func (cs *CoreService) ViewProfile(ctx context.Context, vpRequest model.ViewProf
 		viewProfileData.ViewedProfileIDs = make([]int64, 0)
 		err = cs.RedisRepo.StoreViewProfile(ctx, fmt.Sprintf(KeyViewProfile, rToken.Email), viewProfileData)
 		if err != nil {
-			return nextProfile, errors.New("internal error")
+			return nextProfile, errors.New(util.ErrInternalError)
 		}
 	}
 
@@ -165,7 +165,7 @@ func (cs *CoreService) ViewProfile(ctx context.Context, vpRequest model.ViewProf
 
 		err = cs.RedisRepo.StoreViewProfile(ctx, fmt.Sprintf(KeyViewProfile, rToken.Email), viewProfileData)
 		if err != nil {
-			return nextProfile, errors.New("internal error")
+			return nextProfile, errors.New(util.ErrInternalError)
 		}
 
 		nextProfile.ID = rNextProfile.User.Id
@@ -176,7 +176,7 @@ func (cs *CoreService) ViewProfile(ctx context.Context, vpRequest model.ViewProf
 		viewProfileData.SwipeCount++
 		err = cs.RedisRepo.StoreViewProfile(ctx, fmt.Sprintf(KeyViewProfile, rToken.Email), viewProfileData)
 		if err != nil {
-			return nextProfile, errors.New("internal error")
+			return nextProfile, errors.New(util.ErrInternalError)
 		}
 	}
 
@@ -187,7 +187,7 @@ var HandleGetUserSubscription = func(ctx context.Context, viewProfileRequest mod
 	conn, err := grpc.NewClient("localhost:6021", grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		log.Fatalf("did not connect: %v", err)
-		return nil, errors.New("internal error")
+		return nil, errors.New(util.ErrInternalError)
 	}
 	defer conn.Close()
 	c := pb.NewUserServiceClient(conn)
@@ -200,7 +200,7 @@ var HandleGetUserSubscription = func(ctx context.Context, viewProfileRequest mod
 	})
 	if err != nil {
 		log.Printf("call GetUserSubscription failed: %v", err)
-		return nil, errors.New("internal error")
+		return nil, errors.New(util.ErrInternalError)
 	}
 
 	if rUser.User.Id == 0 {
@@ -214,7 +214,7 @@ var HandleGetNextProfileExceptIDs = func(ctx context.Context, ids []int64) (*pb.
 	conn, err := grpc.NewClient("localhost:6021", grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		log.Fatalf("did not connect: %v", err)
-		return nil, errors.New("internal error")
+		return nil, errors.New(util.ErrInternalError)
 	}
 	defer conn.Close()
 	c := pb.NewUserServiceClient(conn)
@@ -231,7 +231,7 @@ var HandleGetNextProfileExceptIDs = func(ctx context.Context, ids []int64) (*pb.
 			return nil, errors.New("user not found")
 		}
 		log.Printf("call GetNextProfileExceptIDs failed: %v", err)
-		return nil, errors.New("internal error")
+		return nil, errors.New(util.ErrInternalError)
 	}
 
 	if rUser.User.Id == 0 {
@@ -245,7 +245,7 @@ var HandleGetUserByEmail = func(ctx context.Context, loginRequest model.LoginReq
 	conn, err := grpc.NewClient("localhost:6021", grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		log.Fatalf("did not connect: %v", err)
-		return nil, errors.New("internal error")
+		return nil, errors.New(util.ErrInternalError)
 	}
 	defer conn.Close()
 	c := pb.NewUserServiceClient(conn)
@@ -256,7 +256,7 @@ var HandleGetUserByEmail = func(ctx context.Context, loginRequest model.LoginReq
 	rUser, err := c.GetUserByEmail(gCtx, &pb.GetUserByEmailRequest{Email: loginRequest.Email})
 	if err != nil {
 		log.Printf("call GetUserByEmail failed: %v", err)
-		return nil, errors.New("internal error")
+		return nil, errors.New(util.ErrInternalError)
 	}
 
 	if rUser.User.Id == 0 {
@@ -270,7 +270,7 @@ var HandleGetToken = func(ctx context.Context, loginRequest model.LoginRequest) 
 	conn, err := grpc.NewClient("localhost:6022", grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		log.Fatalf("did not connect: %v", err)
-		return nil, errors.New("internal error")
+		return nil, errors.New(util.ErrInternalError)
 	}
 	defer conn.Close()
 	c := pb.NewAuthServiceClient(conn)
@@ -281,11 +281,11 @@ var HandleGetToken = func(ctx context.Context, loginRequest model.LoginRequest) 
 	rToken, err := c.GetToken(gCtx, &pb.GetTokenRequest{Email: loginRequest.Email})
 	if err != nil {
 		log.Printf("call GetToken failed: %v", err)
-		return nil, errors.New("internal error")
+		return nil, errors.New(util.ErrInternalError)
 	}
 
 	if rToken.Token == "" {
-		return nil, errors.New("internal error")
+		return nil, errors.New(util.ErrInternalError)
 	}
 
 	return rToken, nil
@@ -295,7 +295,7 @@ var HandleIsTokenValid = func(ctx context.Context, vpRequest model.ViewProfileRe
 	conn, err := grpc.NewClient("localhost:6022", grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		log.Fatalf("did not connect: %v", err)
-		return nil, errors.New("internal error")
+		return nil, errors.New(util.ErrInternalError)
 	}
 	defer conn.Close()
 	c := pb.NewAuthServiceClient(conn)
@@ -305,12 +305,15 @@ var HandleIsTokenValid = func(ctx context.Context, vpRequest model.ViewProfileRe
 
 	rToken, err := c.IsTokenValid(gCtx, &pb.IsTokenValidRequest{Token: vpRequest.Token})
 	if err != nil {
+		if status.Code(err) == util.CodeInvalidToken {
+			return nil, errors.New(util.ErrUnauthorized)
+		}
 		log.Printf("call IsTokenValid failed: %v", err)
-		return nil, errors.New("internal error")
+		return nil, errors.New(util.ErrInternalError)
 	}
 
 	if !rToken.IsTokenValid {
-		return nil, errors.New("unauthorized")
+		return nil, errors.New(util.ErrUnauthorized)
 	}
 
 	return rToken, nil

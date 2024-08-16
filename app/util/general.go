@@ -2,6 +2,12 @@ package util
 
 import "golang.org/x/crypto/bcrypt"
 
+const ErrUnauthorized = "unauthorized"
+const ErrInternalError = "internal error"
+const ErrInvalidToken = "invalid token"
+
+const CodeInvalidToken = 40
+
 func HashPassword(input string) string {
 	password := []byte(input)
 

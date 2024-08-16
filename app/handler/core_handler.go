@@ -7,6 +7,7 @@ import (
 
 	"github.com/atrariksa/kenalan-core/app/model"
 	"github.com/atrariksa/kenalan-core/app/service"
+	"github.com/atrariksa/kenalan-core/app/util"
 	"github.com/labstack/echo/v4"
 )
 
@@ -89,6 +90,9 @@ func (ch *CoreHandler) ViewProfile(c echo.Context) (err error) {
 
 	profile, err := ch.CoreService.ViewProfile(context.Background(), viewProfileRequest)
 	if err != nil {
+		if err.Error() == util.ErrUnauthorized {
+			return c.JSON(http.StatusUnauthorized, err.Error())
+		}
 		return c.JSON(http.StatusBadRequest, err.Error())
 	}
 

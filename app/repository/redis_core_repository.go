@@ -33,7 +33,7 @@ func (ar *RedisCoreRepository) StoreViewProfile(ctx context.Context, key string,
 func (ar *RedisCoreRepository) GetViewProfile(ctx context.Context, key string) (model.ViewProfile, error) {
 	jsonData, err := ar.RC.Get(ctx, key).Result()
 	if err != nil && err != redis.Nil {
-		return model.ViewProfile{}, errors.New("internal error")
+		return model.ViewProfile{}, errors.New(util.ErrInternalError)
 	}
 
 	var viewProfileData model.ViewProfile
