@@ -1,0 +1,75 @@
+syntax = "proto3";
+option go_package = "github.com/atrariksa/kenalan-core/app/external/grpc_client";
+package grpc_client;
+
+service UserService {
+  rpc IsUserExist(IsUserExistRequest) returns (IsUserExistResponse) {}
+  rpc CreateUser (CreateUserRequest) returns (CreateUserResponse) {}
+  rpc GetUserByEmail (GetUserByEmailRequest) returns (GetUserByEmailResponse) {}
+  rpc GetUserSubscription (GetUserSubscriptionRequest) returns (GetUserSubscriptionResponse) {}
+  rpc GetNextProfileExceptIDs (GetNextProfileExceptIDsRequest) returns (GetNextProfileExceptIDsResponse) {}
+}
+
+message User {
+  int64 id = 1;
+  string full_name = 2;
+  string gender = 3;
+  string dob = 4;
+  string email = 5;
+  string password = 6;
+  string photo_url = 7;
+}
+
+message IsUserExistRequest {
+  string email = 1;
+}
+
+message IsUserExistResponse {
+  int64 code = 1;
+  bool is_user_exist = 2;
+}
+
+message CreateUserRequest {
+  User user = 1;
+}
+
+message CreateUserResponse {
+  int64 code = 1;
+  string message = 2;
+}
+
+message GetUserByEmailRequest {
+  string email = 1;
+}
+
+message GetUserByEmailResponse {
+  int64 code = 1;
+  User user = 2;
+}
+
+message UserSubscription {
+  string expired_at = 1;
+  bool is_active = 2;
+  string product_code = 3;
+  string product_name = 4;
+}
+
+message GetUserSubscriptionRequest {
+  string email = 1;
+}
+
+message GetUserSubscriptionResponse {
+  int64 code = 1;
+  User user = 2;
+  repeated UserSubscription subscriptions = 3;
+}
+
+message GetNextProfileExceptIDsRequest {
+  repeated int64 ids = 1;
+}
+
+message GetNextProfileExceptIDsResponse {
+  int64 code = 1;
+  User user = 2;
+  repeated UserSubscription subscriptions = 3;
+}
