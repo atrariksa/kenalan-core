@@ -12,11 +12,14 @@ import (
 	"github.com/atrariksa/kenalan-core/app/util"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/status"
 
 	pb "github.com/atrariksa/kenalan-core/app/external/grpc_client"
 )
 
 var KeyViewProfile = "view_profile:%s"
+
+const UnlimitedSwipeProductCode = "SKU001"
 
 type ICoreService interface {
 	SignUp(ctx context.Context, signUpRequest model.SignUpRequest) error
@@ -100,20 +103,142 @@ func (cs *CoreService) Login(ctx context.Context, loginRequest model.LoginReques
 }
 
 func (cs *CoreService) ViewProfile(ctx context.Context, vpRequest model.ViewProfileRequest) (model.Profile, error) {
+	var nextProfile model.Profile
 	rToken, err := HandleIsTokenValid(ctx, vpRequest)
 	if err != nil {
-		return model.Profile{}, err
+		return nextProfile, err
+	}
+
+	if rToken.Email == "" {
+		return nextProfile, errors.New("invalid token")
 	}
 
 	viewProfileData, err := cs.RedisRepo.GetViewProfile(ctx, fmt.Sprintf(KeyViewProfile, rToken.Email))
 	if err != nil {
-		return model.Profile{}, err
+		return nextProfile, err
 	}
 
+	var rUser *pb.GetUserSubscriptionResponse
 	if viewProfileData.Email == "" {
+		rUser, err = HandleGetUserSubscription(ctx, vpRequest, viewProfileData.Email)
+		if err != nil {
+			return nextProfile, errors.New("internal error")
+		}
+
+		for i := 0; i < len(rUser.Subscriptions); i++ {
+			if rUser.Subscriptions[i].ProductCode == UnlimitedSwipeProductCode {
+				viewProfileData.IsUnlimitedSwipe = true
+
+				// TODO: Handle for subscription expired_at less than 24 hour
+				// - add delayed job for worker to update value IsUnlimitedSwipe to false
+
+				break
+			}
+		}
+
+		viewProfileData.ViewerID = rUser.User.Id
+		viewProfileData.Email = rToken.Email
+		viewProfileData.ViewedProfileIDs = make([]int64, 0)
+		err = cs.RedisRepo.StoreViewProfile(ctx, fmt.Sprintf(KeyViewProfile, rToken.Email), viewProfileData)
+		if err != nil {
+			return nextProfile, errors.New("internal error")
+		}
 	}
 
-	return model.Profile{}, nil
+	// handle swipe count
+	if viewProfileData.SwipeCount >= 10 {
+		return nextProfile, errors.New("already used up all swipe quota")
+	}
+
+	if vpRequest.SwipeLeft {
+		// pass: get next profile
+		excludeIDs := viewProfileData.ViewedProfileIDs
+		log.Println(viewProfileData.ViewedProfileIDs)
+		excludeIDs = append(excludeIDs, viewProfileData.ViewerID)
+		rNextProfile, err := HandleGetNextProfileExceptIDs(ctx, excludeIDs)
+		if err != nil {
+			return nextProfile, err
+		}
+
+		viewProfileData.ViewedProfileIDs = append(viewProfileData.ViewedProfileIDs, rNextProfile.User.Id)
+		viewProfileData.SwipeCount++
+
+		err = cs.RedisRepo.StoreViewProfile(ctx, fmt.Sprintf(KeyViewProfile, rToken.Email), viewProfileData)
+		if err != nil {
+			return nextProfile, errors.New("internal error")
+		}
+
+		nextProfile.ID = rNextProfile.User.Id
+		nextProfile.Fullname = rNextProfile.User.FullName
+		nextProfile.PhotoURL = rNextProfile.User.PhotoUrl
+	} else {
+		// like:
+		viewProfileData.SwipeCount++
+		err = cs.RedisRepo.StoreViewProfile(ctx, fmt.Sprintf(KeyViewProfile, rToken.Email), viewProfileData)
+		if err != nil {
+			return nextProfile, errors.New("internal error")
+		}
+	}
+
+	return nextProfile, nil
+}
+
+var HandleGetUserSubscription = func(ctx context.Context, viewProfileRequest model.ViewProfileRequest, email string) (*pb.GetUserSubscriptionResponse, error) {
+	conn, err := grpc.NewClient("localhost:6021", grpc.WithTransportCredentials(insecure.NewCredentials()))
+	if err != nil {
+		log.Fatalf("did not connect: %v", err)
+		return nil, errors.New("internal error")
+	}
+	defer conn.Close()
+	c := pb.NewUserServiceClient(conn)
+
+	gCtx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+
+	rUser, err := c.GetUserSubscription(gCtx, &pb.GetUserSubscriptionRequest{
+		Email: email,
+	})
+	if err != nil {
+		log.Printf("call GetUserSubscription failed: %v", err)
+		return nil, errors.New("internal error")
+	}
+
+	if rUser.User.Id == 0 {
+		return nil, errors.New("user not found")
+	}
+
+	return rUser, nil
+}
+
+var HandleGetNextProfileExceptIDs = func(ctx context.Context, ids []int64) (*pb.GetNextProfileExceptIDsResponse, error) {
+	conn, err := grpc.NewClient("localhost:6021", grpc.WithTransportCredentials(insecure.NewCredentials()))
+	if err != nil {
+		log.Fatalf("did not connect: %v", err)
+		return nil, errors.New("internal error")
+	}
+	defer conn.Close()
+	c := pb.NewUserServiceClient(conn)
+
+	gCtx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+
+	rUser, err := c.GetNextProfileExceptIDs(gCtx, &pb.GetNextProfileExceptIDsRequest{
+		Ids: ids,
+	})
+
+	if err != nil {
+		if status.Code(err) == 05 {
+			return nil, errors.New("user not found")
+		}
+		log.Printf("call GetNextProfileExceptIDs failed: %v", err)
+		return nil, errors.New("internal error")
+	}
+
+	if rUser.User.Id == 0 {
+		return nil, errors.New("user not found")
+	}
+
+	return rUser, nil
 }
 
 var HandleGetUserByEmail = func(ctx context.Context, loginRequest model.LoginRequest) (*pb.GetUserByEmailResponse, error) {
@@ -133,7 +258,6 @@ var HandleGetUserByEmail = func(ctx context.Context, loginRequest model.LoginReq
 		log.Printf("call GetUserByEmail failed: %v", err)
 		return nil, errors.New("internal error")
 	}
-	log.Printf("GetUserByEmail: %v", rUser.User.Id)
 
 	if rUser.User.Id == 0 {
 		return nil, errors.New("user not found")
@@ -159,7 +283,6 @@ var HandleGetToken = func(ctx context.Context, loginRequest model.LoginRequest) 
 		log.Printf("call GetToken failed: %v", err)
 		return nil, errors.New("internal error")
 	}
-	log.Printf("GetToken: %v", rToken.Code)
 
 	if rToken.Token == "" {
 		return nil, errors.New("internal error")
@@ -185,7 +308,6 @@ var HandleIsTokenValid = func(ctx context.Context, vpRequest model.ViewProfileRe
 		log.Printf("call IsTokenValid failed: %v", err)
 		return nil, errors.New("internal error")
 	}
-	log.Printf("IsTokenValid: %v", rToken.Code)
 
 	if !rToken.IsTokenValid {
 		return nil, errors.New("unauthorized")

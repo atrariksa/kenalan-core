@@ -3,6 +3,7 @@ package handler
 import (
 	"context"
 	"net/http"
+	"strings"
 
 	"github.com/atrariksa/kenalan-core/app/model"
 	"github.com/atrariksa/kenalan-core/app/service"
@@ -83,6 +84,7 @@ func (ch *CoreHandler) ViewProfile(c echo.Context) (err error) {
 	}
 
 	token := c.Request().Header.Get("Authorization")
+	token = strings.Replace(token, "Bearer ", "", -1)
 	viewProfileRequest.Token = token
 
 	profile, err := ch.CoreService.ViewProfile(context.Background(), viewProfileRequest)
