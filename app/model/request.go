@@ -3,6 +3,9 @@ package model
 import (
 	"errors"
 	"fmt"
+	"strings"
+
+	"github.com/atrariksa/kenalan-core/app/util"
 )
 
 type SignUpRequest struct {
@@ -22,7 +25,13 @@ func (sur *SignUpRequest) Validate() error {
 	if sur.Gender == "" {
 		errMessage += fmt.Sprintf(errTemplate, "gender")
 	}
+	if strings.ToUpper(sur.Gender) != util.GenderMale && strings.ToUpper(sur.Gender) != util.GenderFemale {
+		errMessage += fmt.Sprintf(errTemplate, "gender")
+	}
 	if sur.DOB == "" {
+		errMessage += fmt.Sprintf(errTemplate, "dob")
+	}
+	if _, err := util.ToDateTimeYYYYMMDD(sur.DOB); err != nil {
 		errMessage += fmt.Sprintf(errTemplate, "dob")
 	}
 	if sur.Email == "" {
@@ -79,6 +88,44 @@ func (vpr *ViewProfileRequest) Validate() error {
 		errMessage += fmt.Sprintf(errTemplate, "current_viewed_profile_id;")
 	}
 
+	if errMessage != "" {
+		return errors.New(errMessage)
+	}
+
+	return nil
+}
+
+type PurchaseRequest struct {
+	Token       string
+	UserID      int64  `json:"user_id"`
+	ProductCode string `json:"product_code"`
+	ProductName string `json:"product_name"`
+	ExpiredAt   string `json:"expired_at"`
+}
+
+func (pr *PurchaseRequest) Validate() error {
+	var errMessage string
+	errTemplate := "%s is not valid;"
+	if pr.UserID < 1 {
+		errMessage += fmt.Sprintf(errTemplate, "user_id")
+	}
+	if pr.ProductCode == "" {
+		errMessage += fmt.Sprintf(errTemplate, "product_code")
+	}
+	if pr.ProductCode != util.UnlimitedSwipeProductCode &&
+		pr.ProductCode != util.AccountVerified {
+		errMessage += fmt.Sprintf(errTemplate, "product_code")
+	}
+	if pr.ProductName == "" {
+		errMessage += fmt.Sprintf(errTemplate, "product_name")
+	}
+	if pr.ExpiredAt == "" {
+		errMessage += fmt.Sprintf(errTemplate, "expired_at")
+	}
+	if _, err := util.ToDateTimeYYYYMMDDTHHmmss(pr.ExpiredAt); err != nil {
+		fmt.Println(err)
+		errMessage += fmt.Sprintf(errTemplate, "expired_at")
+	}
 	if errMessage != "" {
 		return errors.New(errMessage)
 	}

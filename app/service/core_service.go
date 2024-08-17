@@ -19,12 +19,11 @@ import (
 
 var KeyViewProfile = "view_profile:%s"
 
-const UnlimitedSwipeProductCode = "SKU001"
-
 type ICoreService interface {
 	SignUp(ctx context.Context, signUpRequest model.SignUpRequest) error
 	Login(ctx context.Context, loginRequest model.LoginRequest) (string, error)
 	ViewProfile(ctx context.Context, vpRequest model.ViewProfileRequest) (model.Profile, error)
+	Purchase(ctx context.Context, pr model.PurchaseRequest) error
 }
 
 type CoreService struct {
@@ -104,7 +103,7 @@ func (cs *CoreService) Login(ctx context.Context, loginRequest model.LoginReques
 
 func (cs *CoreService) ViewProfile(ctx context.Context, vpRequest model.ViewProfileRequest) (model.Profile, error) {
 	var nextProfile model.Profile
-	rToken, err := HandleIsTokenValid(ctx, vpRequest)
+	rToken, err := HandleIsTokenValid(ctx, vpRequest.Token)
 	if err != nil {
 		return nextProfile, err
 	}
@@ -126,7 +125,7 @@ func (cs *CoreService) ViewProfile(ctx context.Context, vpRequest model.ViewProf
 		}
 
 		for i := 0; i < len(rUser.Subscriptions); i++ {
-			if rUser.Subscriptions[i].ProductCode == UnlimitedSwipeProductCode {
+			if rUser.Subscriptions[i].ProductCode == util.UnlimitedSwipeProductCode {
 				viewProfileData.IsUnlimitedSwipe = true
 
 				// TODO: Handle for subscription expired_at less than 24 hour
@@ -146,7 +145,7 @@ func (cs *CoreService) ViewProfile(ctx context.Context, vpRequest model.ViewProf
 	}
 
 	// handle swipe count
-	if viewProfileData.SwipeCount >= 10 {
+	if viewProfileData.SwipeCount >= 10 && !viewProfileData.IsUnlimitedSwipe {
 		return nextProfile, errors.New("already used up all swipe quota")
 	}
 
@@ -154,8 +153,13 @@ func (cs *CoreService) ViewProfile(ctx context.Context, vpRequest model.ViewProf
 		// pass: get next profile
 		excludeIDs := viewProfileData.ViewedProfileIDs
 		log.Println(viewProfileData.ViewedProfileIDs)
+		nextProfileGender := "F"
+		if viewProfileData.ViewerGender == "F" {
+			nextProfileGender = "M"
+		}
 		excludeIDs = append(excludeIDs, viewProfileData.ViewerID)
-		rNextProfile, err := HandleGetNextProfileExceptIDs(ctx, excludeIDs)
+
+		rNextProfile, err := HandleGetNextProfileExceptIDs(ctx, excludeIDs, nextProfileGender)
 		if err != nil {
 			return nextProfile, err
 		}
@@ -181,6 +185,32 @@ func (cs *CoreService) ViewProfile(ctx context.Context, vpRequest model.ViewProf
 	}
 
 	return nextProfile, nil
+}
+
+func (cs *CoreService) Purchase(ctx context.Context, pr model.PurchaseRequest) error {
+	rToken, err := HandleIsTokenValid(ctx, pr.Token)
+	if err != nil {
+		return err
+	}
+
+	if rToken.Email == "" {
+		return errors.New(util.ErrInvalidToken)
+	}
+
+	_, err = HandleUpsertSubscription(ctx, pr, rToken.Email)
+	if err != nil {
+		return err
+	}
+
+	viewProfileData, _ := cs.RedisRepo.GetViewProfile(ctx, fmt.Sprintf(KeyViewProfile, rToken.Email))
+	if viewProfileData.Email == rToken.Email {
+		if pr.ProductCode == util.UnlimitedSwipeProductCode {
+			viewProfileData.IsUnlimitedSwipe = true
+			cs.RedisRepo.StoreViewProfile(ctx, fmt.Sprintf(KeyViewProfile, rToken.Email), viewProfileData)
+		}
+	}
+
+	return nil
 }
 
 var HandleGetUserSubscription = func(ctx context.Context, viewProfileRequest model.ViewProfileRequest, email string) (*pb.GetUserSubscriptionResponse, error) {
@@ -210,7 +240,7 @@ var HandleGetUserSubscription = func(ctx context.Context, viewProfileRequest mod
 	return rUser, nil
 }
 
-var HandleGetNextProfileExceptIDs = func(ctx context.Context, ids []int64) (*pb.GetNextProfileExceptIDsResponse, error) {
+var HandleGetNextProfileExceptIDs = func(ctx context.Context, ids []int64, gender string) (*pb.GetNextProfileExceptIDsResponse, error) {
 	conn, err := grpc.NewClient("localhost:6021", grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		log.Fatalf("did not connect: %v", err)
@@ -223,7 +253,8 @@ var HandleGetNextProfileExceptIDs = func(ctx context.Context, ids []int64) (*pb.
 	defer cancel()
 
 	rUser, err := c.GetNextProfileExceptIDs(gCtx, &pb.GetNextProfileExceptIDsRequest{
-		Ids: ids,
+		Ids:    ids,
+		Gender: gender,
 	})
 
 	if err != nil {
@@ -291,7 +322,7 @@ var HandleGetToken = func(ctx context.Context, loginRequest model.LoginRequest) 
 	return rToken, nil
 }
 
-var HandleIsTokenValid = func(ctx context.Context, vpRequest model.ViewProfileRequest) (*pb.IsTokenValidResponse, error) {
+var HandleIsTokenValid = func(ctx context.Context, token string) (*pb.IsTokenValidResponse, error) {
 	conn, err := grpc.NewClient("localhost:6022", grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		log.Fatalf("did not connect: %v", err)
@@ -303,7 +334,7 @@ var HandleIsTokenValid = func(ctx context.Context, vpRequest model.ViewProfileRe
 	gCtx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 
-	rToken, err := c.IsTokenValid(gCtx, &pb.IsTokenValidRequest{Token: vpRequest.Token})
+	rToken, err := c.IsTokenValid(gCtx, &pb.IsTokenValidRequest{Token: token})
 	if err != nil {
 		if status.Code(err) == util.CodeInvalidToken {
 			return nil, errors.New(util.ErrUnauthorized)
@@ -317,4 +348,34 @@ var HandleIsTokenValid = func(ctx context.Context, vpRequest model.ViewProfileRe
 	}
 
 	return rToken, nil
+}
+
+var HandleUpsertSubscription = func(ctx context.Context, purchaseRequest model.PurchaseRequest, email string) (*pb.UpsertSubscriptionResponse, error) {
+	conn, err := grpc.NewClient("localhost:6021", grpc.WithTransportCredentials(insecure.NewCredentials()))
+	if err != nil {
+		log.Fatalf("did not connect: %v", err)
+		return nil, errors.New(util.ErrInternalError)
+	}
+	defer conn.Close()
+	c := pb.NewUserServiceClient(conn)
+
+	gCtx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+
+	rUpsertSubscription, err := c.UpsertSubscription(gCtx, &pb.UpsertSubscriptionRequest{
+		UserId:      purchaseRequest.UserID,
+		Email:       email,
+		ProductCode: purchaseRequest.ProductCode,
+		ProductName: purchaseRequest.ProductName,
+		ExpiredAt:   purchaseRequest.ExpiredAt,
+	})
+	if err != nil {
+		if status.Code(err) == 14 {
+			log.Printf("call UpsertSubscription failed: %v", err)
+			return nil, errors.New(util.ErrInternalError)
+		}
+		return nil, errors.New(util.ErrProductNotFound)
+	}
+
+	return rUpsertSubscription, nil
 }

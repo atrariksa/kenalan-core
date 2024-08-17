@@ -8,6 +8,7 @@ service UserService {
   rpc GetUserByEmail (GetUserByEmailRequest) returns (GetUserByEmailResponse) {}
   rpc GetUserSubscription (GetUserSubscriptionRequest) returns (GetUserSubscriptionResponse) {}
   rpc GetNextProfileExceptIDs (GetNextProfileExceptIDsRequest) returns (GetNextProfileExceptIDsResponse) {}
+  rpc UpsertSubscription (UpsertSubscriptionRequest) returns (UpsertSubscriptionResponse) {}
 }
 
 message User {
@@ -66,10 +67,24 @@ message GetUserSubscriptionResponse {
 
 message GetNextProfileExceptIDsRequest {
   repeated int64 ids = 1;
+  string gender = 2;
 }
 
 message GetNextProfileExceptIDsResponse {
   int64 code = 1;
   User user = 2;
   repeated UserSubscription subscriptions = 3;
+}
+
+message UpsertSubscriptionRequest {
+  string email = 1;
+  int64 user_id = 2;
+  string product_code = 3;
+  string product_name = 4;
+  string expired_at = 5;
+}
+
+message UpsertSubscriptionResponse {
+  int64 code = 1;
+  string message = 2;
 }

@@ -2,6 +2,7 @@ package handler
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"strings"
 
@@ -24,6 +25,7 @@ func RegisterCoreHandler(e *echo.Echo, svc service.ICoreService) {
 	e.POST("v1/kenalan/sign_up", handler.SignUp)
 	e.POST("v1/kenalan/login", handler.Login)
 	e.POST("v1/kenalan/view_profile", handler.ViewProfile)
+	e.POST("v1/kenalan/purchase", handler.Purchase)
 }
 
 func (ch *CoreHandler) SignUp(c echo.Context) (err error) {
@@ -102,5 +104,38 @@ func (ch *CoreHandler) ViewProfile(c echo.Context) (err error) {
 		Fullname:   profile.Fullname,
 		IsVerified: profile.IsVerified,
 		PhotoURL:   profile.PhotoURL,
+	})
+}
+
+func (ch *CoreHandler) Purchase(c echo.Context) (err error) {
+	var purchaseRequest model.PurchaseRequest
+	err = c.Bind(&purchaseRequest)
+	if err != nil {
+		return c.JSON(http.StatusBadRequest, err.Error())
+	}
+
+	err = purchaseRequest.Validate()
+	if err != nil {
+		return c.JSON(http.StatusBadRequest, err.Error())
+	}
+
+	token := c.Request().Header.Get("Authorization")
+	token = strings.Replace(token, "Bearer ", "", -1)
+	if token == "" {
+		return c.JSON(http.StatusUnauthorized, errors.New(util.ErrUnauthorized))
+	}
+	purchaseRequest.Token = token
+
+	err = ch.CoreService.Purchase(context.Background(), purchaseRequest)
+	if err != nil {
+		if err.Error() == util.ErrProductNotFound {
+			return c.JSON(http.StatusBadRequest, err.Error())
+		}
+		return c.JSON(http.StatusInternalServerError, err.Error())
+	}
+
+	return c.JSON(http.StatusOK, model.PurchaseResponse{
+		Code:    "0000",
+		Message: "Success",
 	})
 }

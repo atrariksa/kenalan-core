@@ -17,3 +17,8 @@ type ViewProfileResponse struct {
 	Fullname   string `json:"full_name"`
 	PhotoURL   string `json:"photo_url"`
 }
+
+type PurchaseResponse struct {
+	Code    string `json:"code"`
+	Message string `json:"message"`
+}

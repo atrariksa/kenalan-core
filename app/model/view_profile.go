@@ -2,6 +2,7 @@ package model
 
 type ViewProfile struct {
 	ViewerID         int64   `json:"viewer_id"`
+	ViewerGender     string  `json:"viewer_gender`
 	Email            string  `json:"email"`
 	IsUnlimitedSwipe bool    `json:"is_unlimited_swipe"`
 	ViewedProfileIDs []int64 `json:"viewed_profile_ids"`

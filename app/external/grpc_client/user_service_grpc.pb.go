@@ -24,6 +24,7 @@ const (
 	UserService_GetUserByEmail_FullMethodName          = "/grpc_client.UserService/GetUserByEmail"
 	UserService_GetUserSubscription_FullMethodName     = "/grpc_client.UserService/GetUserSubscription"
 	UserService_GetNextProfileExceptIDs_FullMethodName = "/grpc_client.UserService/GetNextProfileExceptIDs"
+	UserService_UpsertSubscription_FullMethodName      = "/grpc_client.UserService/UpsertSubscription"
 )
 
 // UserServiceClient is the client API for UserService service.
@@ -35,6 +36,7 @@ type UserServiceClient interface {
 	GetUserByEmail(ctx context.Context, in *GetUserByEmailRequest, opts ...grpc.CallOption) (*GetUserByEmailResponse, error)
 	GetUserSubscription(ctx context.Context, in *GetUserSubscriptionRequest, opts ...grpc.CallOption) (*GetUserSubscriptionResponse, error)
 	GetNextProfileExceptIDs(ctx context.Context, in *GetNextProfileExceptIDsRequest, opts ...grpc.CallOption) (*GetNextProfileExceptIDsResponse, error)
+	UpsertSubscription(ctx context.Context, in *UpsertSubscriptionRequest, opts ...grpc.CallOption) (*UpsertSubscriptionResponse, error)
 }
 
 type userServiceClient struct {
@@ -95,6 +97,16 @@ func (c *userServiceClient) GetNextProfileExceptIDs(ctx context.Context, in *Get
 	return out, nil
 }
 
+func (c *userServiceClient) UpsertSubscription(ctx context.Context, in *UpsertSubscriptionRequest, opts ...grpc.CallOption) (*UpsertSubscriptionResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(UpsertSubscriptionResponse)
+	err := c.cc.Invoke(ctx, UserService_UpsertSubscription_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // UserServiceServer is the server API for UserService service.
 // All implementations must embed UnimplementedUserServiceServer
 // for forward compatibility
@@ -104,6 +116,7 @@ type UserServiceServer interface {
 	GetUserByEmail(context.Context, *GetUserByEmailRequest) (*GetUserByEmailResponse, error)
 	GetUserSubscription(context.Context, *GetUserSubscriptionRequest) (*GetUserSubscriptionResponse, error)
 	GetNextProfileExceptIDs(context.Context, *GetNextProfileExceptIDsRequest) (*GetNextProfileExceptIDsResponse, error)
+	UpsertSubscription(context.Context, *UpsertSubscriptionRequest) (*UpsertSubscriptionResponse, error)
 	mustEmbedUnimplementedUserServiceServer()
 }
 
@@ -125,6 +138,9 @@ func (UnimplementedUserServiceServer) GetUserSubscription(context.Context, *GetU
 }
 func (UnimplementedUserServiceServer) GetNextProfileExceptIDs(context.Context, *GetNextProfileExceptIDsRequest) (*GetNextProfileExceptIDsResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetNextProfileExceptIDs not implemented")
+}
+func (UnimplementedUserServiceServer) UpsertSubscription(context.Context, *UpsertSubscriptionRequest) (*UpsertSubscriptionResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method UpsertSubscription not implemented")
 }
 func (UnimplementedUserServiceServer) mustEmbedUnimplementedUserServiceServer() {}
 
@@ -229,6 +245,24 @@ func _UserService_GetNextProfileExceptIDs_Handler(srv interface{}, ctx context.C
 	return interceptor(ctx, in, info, handler)
 }
 
+func _UserService_UpsertSubscription_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UpsertSubscriptionRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(UserServiceServer).UpsertSubscription(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: UserService_UpsertSubscription_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(UserServiceServer).UpsertSubscription(ctx, req.(*UpsertSubscriptionRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // UserService_ServiceDesc is the grpc.ServiceDesc for UserService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -255,6 +289,10 @@ var UserService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetNextProfileExceptIDs",
 			Handler:    _UserService_GetNextProfileExceptIDs_Handler,
+		},
+		{
+			MethodName: "UpsertSubscription",
+			Handler:    _UserService_UpsertSubscription_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
