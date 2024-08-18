@@ -10,6 +10,7 @@ import (
 	"github.com/atrariksa/kenalan-core/app/model"
 	"github.com/atrariksa/kenalan-core/app/repository"
 	"github.com/atrariksa/kenalan-core/app/util"
+	"github.com/atrariksa/kenalan-core/config"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/status"
@@ -29,17 +30,23 @@ type ICoreService interface {
 type CoreService struct {
 	Repo      repository.ICoreRepository
 	RedisRepo repository.IRedisCoreRepository
+	Cfg       *config.Config
 }
 
-func NewCoreService(coreRepo repository.ICoreRepository, redisRepo repository.IRedisCoreRepository) *CoreService {
+func NewCoreService(
+	coreRepo repository.ICoreRepository,
+	redisRepo repository.IRedisCoreRepository,
+	cfg *config.Config) *CoreService {
+
 	return &CoreService{
 		Repo:      coreRepo,
 		RedisRepo: redisRepo,
+		Cfg:       cfg,
 	}
 }
 
 func (cs *CoreService) SignUp(ctx context.Context, signUpRequest model.SignUpRequest) error {
-	conn, err := grpc.NewClient("localhost:6021", grpc.WithTransportCredentials(insecure.NewCredentials()))
+	conn, err := GetUserServiceConnection(cs.Cfg.UserServerConfig.Host, cs.Cfg.UserServerConfig.Port)
 	if err != nil {
 		log.Printf("did not connect: %v", err)
 		return errors.New(util.ErrInternalError)
@@ -83,7 +90,7 @@ func (cs *CoreService) SignUp(ctx context.Context, signUpRequest model.SignUpReq
 }
 
 func (cs *CoreService) Login(ctx context.Context, loginRequest model.LoginRequest) (string, error) {
-	user, err := HandleGetUserByEmail(ctx, loginRequest)
+	user, err := HandleGetUserByEmail(ctx, cs.Cfg, loginRequest)
 	if err != nil {
 		return "", errors.New("invalid email or password 1")
 	}
@@ -93,7 +100,7 @@ func (cs *CoreService) Login(ctx context.Context, loginRequest model.LoginReques
 		return "", errors.New("invalid email or password 2")
 	}
 
-	rToken, err := HandleGetToken(ctx, loginRequest)
+	rToken, err := HandleGetToken(ctx, cs.Cfg, loginRequest)
 	if err != nil {
 		return "", errors.New("invalid email or password 3")
 	}
@@ -103,7 +110,7 @@ func (cs *CoreService) Login(ctx context.Context, loginRequest model.LoginReques
 
 func (cs *CoreService) ViewProfile(ctx context.Context, vpRequest model.ViewProfileRequest) (model.Profile, error) {
 	var nextProfile model.Profile
-	rToken, err := HandleIsTokenValid(ctx, vpRequest.Token)
+	rToken, err := HandleIsTokenValid(ctx, cs.Cfg, vpRequest.Token)
 	if err != nil {
 		return nextProfile, err
 	}
@@ -119,7 +126,7 @@ func (cs *CoreService) ViewProfile(ctx context.Context, vpRequest model.ViewProf
 
 	var rUser *pb.GetUserSubscriptionResponse
 	if viewProfileData.Email == "" {
-		rUser, err = HandleGetUserSubscription(ctx, vpRequest, viewProfileData.Email)
+		rUser, err = HandleGetUserSubscription(ctx, cs.Cfg, vpRequest, viewProfileData.Email)
 		if err != nil {
 			return nextProfile, errors.New(util.ErrInternalError)
 		}
@@ -160,7 +167,7 @@ func (cs *CoreService) ViewProfile(ctx context.Context, vpRequest model.ViewProf
 		}
 		excludeIDs = append(excludeIDs, viewProfileData.ViewerID)
 
-		rNextProfile, err := HandleGetNextProfileExceptIDs(ctx, excludeIDs, nextProfileGender)
+		rNextProfile, err := HandleGetNextProfileExceptIDs(ctx, cs.Cfg, excludeIDs, nextProfileGender)
 		if err != nil {
 			return nextProfile, err
 		}
@@ -195,7 +202,7 @@ func (cs *CoreService) ViewProfile(ctx context.Context, vpRequest model.ViewProf
 }
 
 func (cs *CoreService) Purchase(ctx context.Context, pr model.PurchaseRequest) error {
-	rToken, err := HandleIsTokenValid(ctx, pr.Token)
+	rToken, err := HandleIsTokenValid(ctx, cs.Cfg, pr.Token)
 	if err != nil {
 		return err
 	}
@@ -204,7 +211,7 @@ func (cs *CoreService) Purchase(ctx context.Context, pr model.PurchaseRequest) e
 		return errors.New(util.ErrInvalidToken)
 	}
 
-	_, err = HandleUpsertSubscription(ctx, pr, rToken.Email)
+	_, err = HandleUpsertSubscription(ctx, cs.Cfg, pr, rToken.Email)
 	if err != nil {
 		return err
 	}
@@ -220,8 +227,13 @@ func (cs *CoreService) Purchase(ctx context.Context, pr model.PurchaseRequest) e
 	return nil
 }
 
-var HandleGetUserSubscription = func(ctx context.Context, viewProfileRequest model.ViewProfileRequest, email string) (*pb.GetUserSubscriptionResponse, error) {
-	conn, err := grpc.NewClient("localhost:6021", grpc.WithTransportCredentials(insecure.NewCredentials()))
+var HandleGetUserSubscription = func(
+	ctx context.Context,
+	cfg *config.Config,
+	viewProfileRequest model.ViewProfileRequest,
+	email string) (*pb.GetUserSubscriptionResponse, error) {
+
+	conn, err := GetUserServiceConnection(cfg.UserServerConfig.Host, cfg.UserServerConfig.Port)
 	if err != nil {
 		log.Fatalf("did not connect: %v", err)
 		return nil, errors.New(util.ErrInternalError)
@@ -247,8 +259,13 @@ var HandleGetUserSubscription = func(ctx context.Context, viewProfileRequest mod
 	return rUser, nil
 }
 
-var HandleGetNextProfileExceptIDs = func(ctx context.Context, ids []int64, gender string) (*pb.GetNextProfileExceptIDsResponse, error) {
-	conn, err := grpc.NewClient("localhost:6021", grpc.WithTransportCredentials(insecure.NewCredentials()))
+var HandleGetNextProfileExceptIDs = func(
+	ctx context.Context,
+	cfg *config.Config,
+	ids []int64,
+	gender string) (*pb.GetNextProfileExceptIDsResponse, error) {
+
+	conn, err := GetUserServiceConnection(cfg.UserServerConfig.Host, cfg.UserServerConfig.Port)
 	if err != nil {
 		log.Fatalf("did not connect: %v", err)
 		return nil, errors.New(util.ErrInternalError)
@@ -279,8 +296,12 @@ var HandleGetNextProfileExceptIDs = func(ctx context.Context, ids []int64, gende
 	return rUser, nil
 }
 
-var HandleGetUserByEmail = func(ctx context.Context, loginRequest model.LoginRequest) (*pb.GetUserByEmailResponse, error) {
-	conn, err := grpc.NewClient("localhost:6021", grpc.WithTransportCredentials(insecure.NewCredentials()))
+var HandleGetUserByEmail = func(
+	ctx context.Context,
+	cfg *config.Config,
+	loginRequest model.LoginRequest) (*pb.GetUserByEmailResponse, error) {
+
+	conn, err := GetUserServiceConnection(cfg.UserServerConfig.Host, cfg.UserServerConfig.Port)
 	if err != nil {
 		log.Fatalf("did not connect: %v", err)
 		return nil, errors.New(util.ErrInternalError)
@@ -304,8 +325,12 @@ var HandleGetUserByEmail = func(ctx context.Context, loginRequest model.LoginReq
 	return rUser, nil
 }
 
-var HandleGetToken = func(ctx context.Context, loginRequest model.LoginRequest) (*pb.GetTokenResponse, error) {
-	conn, err := grpc.NewClient("localhost:6022", grpc.WithTransportCredentials(insecure.NewCredentials()))
+var HandleGetToken = func(
+	ctx context.Context,
+	cfg *config.Config,
+	loginRequest model.LoginRequest) (*pb.GetTokenResponse, error) {
+
+	conn, err := GetAuthServiceConnection(cfg.AuthServerConfig.Host, cfg.AuthServerConfig.Port)
 	if err != nil {
 		log.Fatalf("did not connect: %v", err)
 		return nil, errors.New(util.ErrInternalError)
@@ -329,8 +354,12 @@ var HandleGetToken = func(ctx context.Context, loginRequest model.LoginRequest) 
 	return rToken, nil
 }
 
-var HandleIsTokenValid = func(ctx context.Context, token string) (*pb.IsTokenValidResponse, error) {
-	conn, err := grpc.NewClient("localhost:6022", grpc.WithTransportCredentials(insecure.NewCredentials()))
+var HandleIsTokenValid = func(
+	ctx context.Context,
+	cfg *config.Config,
+	token string) (*pb.IsTokenValidResponse, error) {
+
+	conn, err := GetAuthServiceConnection(cfg.AuthServerConfig.Host, cfg.AuthServerConfig.Port)
 	if err != nil {
 		log.Fatalf("did not connect: %v", err)
 		return nil, errors.New(util.ErrInternalError)
@@ -357,8 +386,13 @@ var HandleIsTokenValid = func(ctx context.Context, token string) (*pb.IsTokenVal
 	return rToken, nil
 }
 
-var HandleUpsertSubscription = func(ctx context.Context, purchaseRequest model.PurchaseRequest, email string) (*pb.UpsertSubscriptionResponse, error) {
-	conn, err := grpc.NewClient("localhost:6021", grpc.WithTransportCredentials(insecure.NewCredentials()))
+var HandleUpsertSubscription = func(
+	ctx context.Context,
+	cfg *config.Config,
+	purchaseRequest model.PurchaseRequest,
+	email string) (*pb.UpsertSubscriptionResponse, error) {
+
+	conn, err := GetUserServiceConnection(cfg.UserServerConfig.Host, cfg.UserServerConfig.Port)
 	if err != nil {
 		log.Fatalf("did not connect: %v", err)
 		return nil, errors.New(util.ErrInternalError)
@@ -385,4 +419,16 @@ var HandleUpsertSubscription = func(ctx context.Context, purchaseRequest model.P
 	}
 
 	return rUpsertSubscription, nil
+}
+
+var GetUserServiceConnection = func(host string, port int) (*grpc.ClientConn, error) {
+	return grpc.NewClient(
+		fmt.Sprintf("%v:%v", host, port),
+		grpc.WithTransportCredentials(insecure.NewCredentials()))
+}
+
+var GetAuthServiceConnection = func(host string, port int) (*grpc.ClientConn, error) {
+	return grpc.NewClient(
+		fmt.Sprintf("%v:%v", host, port),
+		grpc.WithTransportCredentials(insecure.NewCredentials()))
 }

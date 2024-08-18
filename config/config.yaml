@@ -1,0 +1,16 @@
+server:
+  host: ""
+  port: 6020
+
+user-server:
+  host: "localhost"
+  port: 6021
+
+auth-server:
+  host: "localhost"
+  port: 6022
+
+redis:
+  address: "localhost:6379"
+  password: ""
+  db: 0
