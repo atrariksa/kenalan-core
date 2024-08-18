@@ -176,7 +176,7 @@ func (cs *CoreService) ViewProfile(ctx context.Context, vpRequest model.ViewProf
 		nextProfile.Fullname = rNextProfile.User.FullName
 		nextProfile.PhotoURL = rNextProfile.User.PhotoUrl
 		for i := 0; i < len(rNextProfile.Subscriptions); i++ {
-			if rNextProfile.Subscriptions[i].ProductCode == util.AccountVerified {
+			if rNextProfile.Subscriptions[i].ProductCode == util.AccountVerifiedProductCode {
 				nextProfile.IsVerified = true
 				break
 			}

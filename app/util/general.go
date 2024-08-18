@@ -14,7 +14,7 @@ const ErrProductNotFound = "product not found"
 const CodeInvalidToken = 40
 
 const UnlimitedSwipeProductCode = "SKU001"
-const AccountVerified = "SKU002"
+const AccountVerifiedProductCode = "SKU002"
 
 const GenderMale = "M"
 const GenderFemale = "F"

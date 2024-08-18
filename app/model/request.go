@@ -113,7 +113,7 @@ func (pr *PurchaseRequest) Validate() error {
 		errMessage += fmt.Sprintf(errTemplate, "product_code")
 	}
 	if pr.ProductCode != util.UnlimitedSwipeProductCode &&
-		pr.ProductCode != util.AccountVerified {
+		pr.ProductCode != util.AccountVerifiedProductCode {
 		errMessage += fmt.Sprintf(errTemplate, "product_code")
 	}
 	if pr.ProductName == "" {

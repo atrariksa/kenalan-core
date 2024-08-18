@@ -18,3 +18,8 @@ Core of System Kenalan
 - create database with name kenalan (DDL can be checked at github repo kenalan-user)
 - run kenalan-user & kenalan-auth service
 - go run main.go
+
+# Other
+- Registered ProductCodes : 
+  - "SKU001" for Unlimited Swipe
+  - "SKU002" for Account Verified
