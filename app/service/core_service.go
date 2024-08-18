@@ -138,6 +138,7 @@ func (cs *CoreService) ViewProfile(ctx context.Context, vpRequest model.ViewProf
 		viewProfileData.ViewerID = rUser.User.Id
 		viewProfileData.Email = rToken.Email
 		viewProfileData.ViewedProfileIDs = make([]int64, 0)
+		viewProfileData.ViewerGender = rUser.User.Gender
 		err = cs.RedisRepo.StoreViewProfile(ctx, fmt.Sprintf(KeyViewProfile, rToken.Email), viewProfileData)
 		if err != nil {
 			return nextProfile, errors.New(util.ErrInternalError)
