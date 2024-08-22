@@ -34,23 +34,6 @@ func ToDateTimeYYYYMMDDTHHmmss(dateString string) (dt time.Time, err error) {
 	return time.Parse(DateFormatYYYYMMDDTHHmmss, dateString)
 }
 
-func HashPassword(input string) string {
-	password := []byte(input)
-
-	// Hashing the password with the default cost of 10
-	hashedPassword, err := bcrypt.GenerateFromPassword(password, bcrypt.DefaultCost)
-	if err != nil {
-		panic(err)
-	}
-
-	// Comparing the password with the hash
-	err = bcrypt.CompareHashAndPassword(hashedPassword, password)
-	if err != nil {
-		panic(err)
-	}
-	return string(hashedPassword)
-}
-
 func ValidatePassword(givenPlainTextPassword string, storedHashedPassword string) error {
 	password := []byte(givenPlainTextPassword)
 	hashedPassword := []byte(storedHashedPassword)

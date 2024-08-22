@@ -54,7 +54,7 @@ func (cs *CoreService) SignUp(ctx context.Context, signUpRequest model.SignUpReq
 	defer conn.Close()
 	c := pb.NewUserServiceClient(conn)
 
-	gCtx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	gCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
 	defer cancel()
 
 	r, err := c.IsUserExist(gCtx, &pb.IsUserExistRequest{Email: signUpRequest.Email})
@@ -68,7 +68,7 @@ func (cs *CoreService) SignUp(ctx context.Context, signUpRequest model.SignUpReq
 		return errors.New("user already exists")
 	}
 
-	gCtx, cancel = context.WithTimeout(context.Background(), 3*time.Second)
+	gCtx, cancel = context.WithTimeout(ctx, 3*time.Second)
 	defer cancel()
 
 	rUser, err := c.CreateUser(gCtx, &pb.CreateUserRequest{
@@ -241,7 +241,7 @@ var HandleGetUserSubscription = func(
 	defer conn.Close()
 	c := pb.NewUserServiceClient(conn)
 
-	gCtx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	gCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
 	defer cancel()
 
 	rUser, err := c.GetUserSubscription(gCtx, &pb.GetUserSubscriptionRequest{
@@ -273,7 +273,7 @@ var HandleGetNextProfileExceptIDs = func(
 	defer conn.Close()
 	c := pb.NewUserServiceClient(conn)
 
-	gCtx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	gCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
 	defer cancel()
 
 	rUser, err := c.GetNextProfileExceptIDs(gCtx, &pb.GetNextProfileExceptIDsRequest{
@@ -309,7 +309,7 @@ var HandleGetUserByEmail = func(
 	defer conn.Close()
 	c := pb.NewUserServiceClient(conn)
 
-	gCtx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	gCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
 	defer cancel()
 
 	rUser, err := c.GetUserByEmail(gCtx, &pb.GetUserByEmailRequest{Email: loginRequest.Email})
@@ -338,7 +338,7 @@ var HandleGetToken = func(
 	defer conn.Close()
 	c := pb.NewAuthServiceClient(conn)
 
-	gCtx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	gCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
 	defer cancel()
 
 	rToken, err := c.GetToken(gCtx, &pb.GetTokenRequest{Email: loginRequest.Email})
@@ -367,7 +367,7 @@ var HandleIsTokenValid = func(
 	defer conn.Close()
 	c := pb.NewAuthServiceClient(conn)
 
-	gCtx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	gCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
 	defer cancel()
 
 	rToken, err := c.IsTokenValid(gCtx, &pb.IsTokenValidRequest{Token: token})
@@ -400,7 +400,7 @@ var HandleUpsertSubscription = func(
 	defer conn.Close()
 	c := pb.NewUserServiceClient(conn)
 
-	gCtx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	gCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
 	defer cancel()
 
 	rUpsertSubscription, err := c.UpsertSubscription(gCtx, &pb.UpsertSubscriptionRequest{
